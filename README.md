@@ -108,24 +108,24 @@ data type and write it into the table below. Justify each choice in one sentence
 Use `NUMERIC(p,s)` for monetary values; choose the most precise date/time type
 for each temporal attribute.
 
-| Attribute              | Your Type         | Justification |
-|------------------------|-------------------|---------------|
-| isbn                   |                   |               |
-| titel                  |                   |               |
-| erscheinungsjahr       |                   |               |
-| verlag                 |                   |               |
-| tagesgebuehr           |                   |               |
-| exemplar_id            |                   |               |
-| standort               |                   |               |
-| mitglied_id            |                   |               |
-| nachname               |                   |               |
-| vorname                |                   |               |
-| geburtsdatum           |                   |               |
-| email                  |                   |               |
-| beitritt_datum         |                   |               |
-| ausleihe_id            |                   |               |
-| ausleihe_datum         |                   |               |
-| rueckgabe_datum        |                   |               |
+| Attribute              | Your Type         | Justification                                                                 |
+|------------------------|-------------------|-------------------------------------------------------------------------------|
+| isbn                   |    TEXT           | It contains dashes and alphanumeric characters, and is never used for math.   |
+| titel                  |     TEXT          | It contains variable-length textual data representing book titles.            |
+| erscheinungsjahr       |    INTEGER        | It represents a whole calendar year used for chronological comparisons.       |
+| verlag                 |  TEXT             | It contains variable-length textual data representing publisher names.        |
+| tagesgebuehr           |    NUMERIC(4,2)   | It represents a precise monetary value with exactly two decimal places.       |
+| exemplar_id            |  INTEGER          | It functions as an automatically incremented, unique numerical identifier.    |
+| standort               |   TEXT            | It holds alphanumeric codes indicating physical locations in the library.     |
+| mitglied_id            |  INTEGER          | It serves as an automatically incremented, unique numerical identifier.       |
+| nachname               |   TEXT            | It stores variable-length textual data representing members' last names.      |
+| vorname                |  TEXT             | It stores variable-length textual data representing members' first names.     |
+| geburtsdatum           |   DATE            | It stores a specific day, month, and year for a person's birth date.          |
+| email                  |    TEXT           | It holds variable-length alphanumeric strings representing email addresses.   |
+| beitritt_datum         |    DATE           | It records the exact date a member joined the library.                        |
+| ausleihe_id            |    INTEGER        | It functions as an automatically incremented, unique numerical identifier.    |
+| ausleihe_datum         |     DATE          | It stores the precise calendar date a physical copy was borrowed.             |
+| rueckgabe_datum        |    DATE           | It records the precise calendar date a copy was returned, or remains empty.   |
 
 ### Questions for Task 1
 
@@ -133,19 +133,22 @@ for each temporal attribute.
 example — using arithmetic — of why `REAL` would produce an incorrect result
 for a lending fee calculation. Which type must be used instead?
 
-> *Your answer:*
+> *Your answer:
+> REAL uses binary floating-point math, which cannot precisely represent base-10 fractions like 0.10. For example, 0.10 + 0.20 might evaluate to 0.30000000000000004, causing compounding errors in financial audits. The NUMERIC or DECIMAL type must be used instead.*
 
 **Question 1.2:** `rueckgabe_datum` must be nullable. Explain what `NULL` means
 in this specific context. Is `NULL` the same as "zero days"? Justify with
 reference to the three-valued logic of SQL.
 
-> *Your answer:*
+> *Your answer:
+> NULL means the information is missing, unknown, or not yet applicable because the book has not been brought back. It is not the same as "zero days" because in three-valued logic, NULL evaluates to UNKNOWN, meaning calculations like CURRENT_DATE - NULL correctly yield NULL instead of an incorrect integer*
 
 **Question 1.3:** `beitritt_datum` should default to today's date when no value
 is provided. Write the `DEFAULT` expression you would use and explain why this
 is preferable to always supplying the date explicitly in the application.
 
-> *Your answer:*
+> *Your answer:
+> The expression is DEFAULT CURRENT_DATE. This is preferable because it guarantees data consistency directly at the database level, ensuring the correct timestamp is captured even if different client applications or time zones submit the data.*
 
 ---
 
@@ -242,7 +245,7 @@ sqlite3 bibliothek.db ".schema"
 > **Screenshot 2:** Take a screenshot showing the `.tables` and `.schema`
 > output in your terminal.
 >
-> `[insert screenshot]`
+> `<img width="917" height="659" alt="screen 1" src="https://github.com/user-attachments/assets/ba3db999-098d-4ef5-9daa-d58469a92c84" />
 
 ### Task 2c – Test Constraints
 
@@ -268,9 +271,9 @@ INSERT INTO ausleihe VALUES (1, 1, 1, '2026-05-10', '2026-05-01');
 
 > *Describe the error or result for each test:*
 >
-> - Test A:
-> - Test B:
-> - Test C:
+> - Test A:Error: CHECK constraint failed: buch (Fails because the daily fee is negative).
+> - Test B:Error: NOT NULL constraint failed: mitglied.email (Fails because the email column cannot be blank).
+> - Test C:Error: CHECK constraint failed: chk_rueckgabe_datum (Fails because the return date is chronologically before the borrow date).
 
 ### Questions for Task 2
 
@@ -278,19 +281,22 @@ INSERT INTO ausleihe VALUES (1, 1, 1, '2026-05-10', '2026-05-01');
 constraint rather than a column constraint. Why is a column constraint
 insufficient here?
 
-> *Your answer:*
+> *Your answer:
+> A column constraint can only reference the individual column it is attached to. Because this constraint evaluates a relationship between two separate columns (rueckgabe_datum and ausleihe_datum), a table-level constraint must be used.*
 
 **Question 2.2:** You chose `ON DELETE RESTRICT` for all foreign keys.
 Describe a realistic alternative: for which relationship would `ON DELETE
 CASCADE` be appropriate instead, and why?
 
-> *Your answer:*
+> *Your answer:
+> ON DELETE CASCADE would be appropriate for the relationship between buch and exemplar. If the library decides to completely remove a book title from its system, it makes sense to automatically wipe out all physical copies associated with that specific ISBN.*
 
 **Question 2.3:** `email` is declared `UNIQUE`. According to the SQL standard,
 how many `NULL` values may a `UNIQUE` column contain? Explain using the
 three-valued logic of SQL.
 
-> *Your answer:*
+> *Your answer:
+> A UNIQUE column may contain an infinite number of NULL values. Under SQL's three-valued logic, a comparison between two nulls (NULL = NULL) evaluates to UNKNOWN, meaning one null value is never treated as equal to another null value.*
 
 ---
 
@@ -408,21 +414,24 @@ works because all affected rows are in the same table. Why can a standard SQL
 `UPDATE` not update rows in two different tables simultaneously, and what would
 you use instead in a production system?
 
-> *Your answer:*
+> *Your answer:
+> A standard SQL UPDATE targets a single logical relation to ensure transaction isolation and structural stability. In a production environment, you would execute multiple individual UPDATE statements wrapped together inside a single database transaction, or use a writable View / Stored Procedure.*
 
 **Question 3.2:** Task 3b.3 raises the fee for books published before 1960
 by 10 cents. Write the equivalent statement using `NUMERIC` arithmetic:
 `tagesgebuehr = tagesgebuehr + 0.10`. Would the same statement work correctly
 with `REAL`? Explain the risk.
 
-> *Your answer:*
+> *Your answer:
+> The statement is UPDATE buch SET tagesgebuehr = tagesgebuehr + 0.10 WHERE erscheinungsjahr < 1960;. If run with REAL, the values risk floating-point rounding errors (e.g., 0.60000001), breaking exact matching logic in billing calculations.*
 
 **Question 3.3:** Task 3c.1 deletes loans where the return date is more than
 30 days ago. A `DELETE` without a `WHERE` clause would delete all loans.
 Describe the operational consequence and explain how `BEGIN` / `ROLLBACK`
 protects against this mistake.
 
-> *Your answer:*
+> *Your answer:
+> Omitting the WHERE clause deletes every single record in the table, completely wiping out all loan history records. Wrapping the command in BEGIN and ROLLBACK protects you because it runs the change in a temporary sandbox space, letting you undo the structural damage completely before it hits disk storage.*
 
 ---
 
@@ -483,14 +492,16 @@ ALTER TABLE exemplar
 nullable column. Why is this simpler than adding a `NOT NULL` column to an
 already-populated table? What steps would be needed for a `NOT NULL` column?
 
-> *Your answer:*
+> *Your answer:
+> Adding a nullable column is simpler because the database assigns a default NULL to existing rows without breaking anything. To add a NOT NULL column, you must either specify a temporary default value (DEFAULT 'value') or add it as nullable, fill the blank rows with data using an UPDATE statement, and then alter the structural constraints to NOT NULL.*
 
 **Question 4.2:** SQLite's limited `ALTER TABLE` support is a deliberate
 design decision. What does this tell you about the trade-off between a
 lightweight embedded database and a full-featured server database system?
 Name one scenario where SQLite is the right choice and one where it is not.
 
-> *Your answer:*
+> *Your answer:
+> This highlights that SQLite values a tiny, efficient storage footprint and simple design over the resource-intensive parsing logic found in large systems. SQLite is perfect for local mobile applications or desktop software configs; it is a poor fit for massive web platforms processing hundreds of parallel writes simultaneously.*
 
 Commit:
 
@@ -544,7 +555,7 @@ SELECT * FROM ausleihe WHERE ausleihe_id = 5;
 
 > **Screenshot 3:** Take a screenshot showing the inserted row.
 >
-> `[insert screenshot]`
+> `<img width="918" height="38" alt="2" src="https://github.com/user-attachments/assets/eb2e7e94-8f76-4e4c-99aa-1736bb8913a5" />`
 
 ### Task 5b – Simulate a Rollback
 
@@ -569,7 +580,8 @@ SELECT rueckgabe_datum FROM ausleihe WHERE ausleihe_id = 2;
 SELECT COUNT(*) FROM ausleihe WHERE ausleihe_id = 6;
 ```
 
-> *Describe what you see and explain why `ROLLBACK` reversed both changes:*
+> *Describe what you see and explain why `ROLLBACK` reversed both changes:
+> SELECT rueckgabe_datum still displays the correct date, and SELECT COUNT(*) yields 0. The ROLLBACK command instantly cleared all uncommitted writes out of the active database cache, ensuring the data looks exactly like it did before the transaction began.*
 
 ### Questions for Task 5
 
@@ -577,20 +589,23 @@ SELECT COUNT(*) FROM ausleihe WHERE ausleihe_id = 6;
 availability check and the insert happen inside the same transaction?
 What could go wrong if they ran as separate Autocommit statements?
 
-> *Your answer:*
+> *Your answer:
+> Isolation keeps your checks accurate. If run as separate Autocommit statements, a race condition could allow two different users to see a single book as available at the exact same moment, causing the system to double-book a single physical copy.*
 
 **Question 5.2:** The lecture states: "Ein fehlendes `WHERE` aktualisiert
 alle Zeilen." Write the single most dangerous `UPDATE` statement possible
 on this database and explain the damage it would cause. Then explain how
 `BEGIN` / `ROLLBACK` would allow you to recover.
 
-> *Your answer:*
+> *Your answer:
+> The statement is UPDATE buch SET tagesgebuehr = 0.01;. This wipes out the entire price matrix of the library, setting every single book to one cent. A ROLLBACK saves you by completely undoing the statement in memory before the data gets written to disk.*
 
 **Question 5.3:** Autocommit is convenient for read-only queries (`SELECT`).
 Is it also safe for DML in an interactive session? Give a concrete example
 from this exercise where Autocommit would have caused irreversible data loss.
 
-> *Your answer:*
+> *Your answer:
+> Autocommit is dangerous for modifications. If you run a query like DELETE FROM mitglied; in an active session by mistake, Autocommit writes the change to the database instantly, leaving you with no way to undo the deletion.*
 
 Commit:
 
@@ -609,7 +624,8 @@ The lecture warns against using `TEXT` for everything. Looking at the
 it should be a more specific type, and what concrete query would break or
 produce wrong results if the wrong type were used?
 
-> *Your answer:*
+> *Your answer:
+> Storing erscheinungsjahr as a TEXT field is highly tempting. If stored as text, sorting queries or conditional logic checks like WHERE夹 erscheinungsjahr < 1960 will fail or return invalid datasets because text characters follow alphabetical order rules rather than numerical value order.*
 
 **Question B – DDL as documentation:**  
 A colleague reads your `schema.sql` and says: "Constraints slow down inserts
@@ -617,14 +633,16 @@ A colleague reads your `schema.sql` and says: "Constraints slow down inserts
 reasons why enforcing constraints in the database is preferable to
 enforcing them only in application code.
 
-> *Your answer:*
+> *Your answer:
+> First, database constraints guarantee data validity for all incoming connections, regardless of how many different applications or programming languages talk to it. Second, it protects against bugs or missing checks in backend application logic.*
 
 **Question C – NULL semantics in lending:**  
 In `ausleihe`, `rueckgabe_datum IS NULL` means "currently on loan". Could
 this semantic be expressed without using `NULL` — e.g. by using a status
 column instead? What are the trade-offs?
 
-> *Your answer:*
+> *Your answer:
+> Yes, you could use a status column like status TEXT CHECK (status IN ('available', 'loaned')). The trade-off is that it introduces redundancy; you must write extra code to synchronize the status text with your ausleihe entries, which increases the risk of data mismatch bugs.*
 
 **Question D – `TRUNCATE` vs. `DELETE`:**  
 If you wanted to reset the entire database and reload the sample data from
@@ -632,13 +650,14 @@ scratch, you would need to empty all four tables. Can you use `TRUNCATE`
 in SQLite? What alternative would you use, and in what order must the tables
 be emptied to respect foreign key constraints?
 
-> *Your answer:*
+> *Your answer:
+> No, SQLite does not support TRUNCATE. You must use DELETE FROM instead, wiping the data out in reverse dependency order to protect your foreign keys: ausleihe first, then exemplar, then buch and mitglied.*
 
 > **Screenshot 4:** Take a screenshot showing the output of the row-count
 > verification from Task 3a after completing all DML tasks, with
 > `.headers on` and `.mode column` active.
 >
-> `[insert screenshot]`
+> `<img width="679" height="194" alt="4" src="https://github.com/user-attachments/assets/ade0a5f5-0a30-4d79-bf93-78715dacc2d2" />`
 
 ---
 
